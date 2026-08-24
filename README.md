@@ -904,7 +904,7 @@ All keyCRM API errors are caught and returned to Claude as structured error mess
 
 ### Rate limiting
 
-The keyCRM API enforces a limit of **60 requests per minute per IP address per API key**. The server handles HTTP 429 responses automatically with exponential backoff:
+According to the [official keyCRM API-key guidance](https://help.keycrm.app/uk/process-automation-api-and-more/where-to-get-an-api-key), the API limit is **up to 20 requests per minute per API key**; keyCRM recommends a 3-second interval between requests. The server handles HTTP 429 responses automatically with exponential backoff:
 
 - First retry: 1 second
 - Second retry: 2 seconds
