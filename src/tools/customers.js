@@ -7,6 +7,20 @@ const configuredDefaultLimit = Number.parseInt(process.env.LIST_DEFAULT_LIMIT ||
 const DEFAULT_LIMIT = Number.isFinite(configuredDefaultLimit)
   ? Math.min(Math.max(configuredDefaultLimit, 1), KEYCRM_PAGE_LIMIT)
   : KEYCRM_PAGE_LIMIT;
+const PAGINATION_URL_KEYS = [
+  'path',
+  'link',
+  'links',
+  'first_page_url',
+  'last_page_url',
+  'next_page_url',
+  'prev_page_url',
+  'firstPageUrl',
+  'lastPageUrl',
+  'nextPageUrl',
+  'prevPageUrl',
+  'previousPageUrl',
+];
 
 function responseRows(response) {
   if (Array.isArray(response)) return response;
@@ -33,6 +47,24 @@ function flattenSearchValue(value) {
   if (typeof value === 'string') return [value];
   if (Array.isArray(value)) return value.flatMap(flattenSearchValue);
   return [];
+}
+
+function removePaginationUrlMetadata(result) {
+  for (const key of PAGINATION_URL_KEYS) {
+    delete result[key];
+  }
+}
+
+function copyWithoutPaginationUrls(response) {
+  const result = response && typeof response === 'object' ? { ...response } : {};
+  if (result.meta && typeof result.meta === 'object') {
+    result.meta = { ...result.meta };
+  }
+  removePaginationUrlMetadata(result);
+  if (result.meta && typeof result.meta === 'object') {
+    removePaginationUrlMetadata(result.meta);
+  }
+  return result;
 }
 
 export function customerSearchValues(customer) {
@@ -66,9 +98,7 @@ function buildSearchResponse(firstResponse, matches, offset, limit, searchTrunca
   const data = matches.slice(offset, offset + limit);
   if (Array.isArray(firstResponse)) return data;
 
-  const result = firstResponse && typeof firstResponse === 'object'
-    ? { ...firstResponse }
-    : {};
+  const result = copyWithoutPaginationUrls(firstResponse);
   result.data = data;
   result.total = matches.length;
   result.search_truncated = searchTruncated;
@@ -89,6 +119,50 @@ function buildSearchResponse(firstResponse, matches, offset, limit, searchTrunca
     const meta = { ...result.meta, total: matches.length };
     for (const [key, value] of Object.entries(pagination)) {
       if (Object.prototype.hasOwnProperty.call(meta, key)) meta[key] = value;
+    }
+    result.meta = meta;
+  }
+  return result;
+}
+
+function hasNextPage(response, page, requestedLimit) {
+  const { currentPage, lastPage } = responsePagination(response, page);
+  if (lastPage !== undefined) return currentPage < lastPage;
+  return responseRows(response).length >= requestedLimit;
+}
+
+function buildOffsetResponse(firstResponse, data, offset, limit) {
+  if (Array.isArray(firstResponse)) return data;
+
+  const result = copyWithoutPaginationUrls(firstResponse);
+  result.data = data;
+  const currentPage = Math.floor(offset / limit) + 1;
+  const total = Number(result.total ?? result.meta?.total);
+  const lastPage = Number.isFinite(total) && total >= 0
+    ? Math.max(1, Math.ceil(total / limit))
+    : undefined;
+  const pagination = {
+    current_page: currentPage,
+    currentPage,
+    last_page: lastPage,
+    lastPage,
+    per_page: limit,
+    perPage: limit,
+    from: data.length > 0 ? offset + 1 : null,
+    to: data.length > 0 ? offset + data.length : null,
+  };
+  for (const [key, value] of Object.entries(pagination)) {
+    if (value !== undefined && Object.prototype.hasOwnProperty.call(result, key)) {
+      result[key] = value;
+    }
+  }
+  if (result.meta && typeof result.meta === 'object') {
+    const meta = { ...result.meta };
+    if (lastPage !== undefined) meta.total = total;
+    for (const [key, value] of Object.entries(pagination)) {
+      if (value !== undefined && Object.prototype.hasOwnProperty.call(meta, key)) {
+        meta[key] = value;
+      }
     }
     result.meta = meta;
   }
@@ -127,6 +201,35 @@ export async function searchCustomers(client, query, limit, offset) {
   return buildSearchResponse(firstResponse, matches, offset, limit, searchTruncated);
 }
 
+/**
+ * List an unfiltered page while honoring zero-based offsets that fall inside a
+ * native page. The API page size is the caller's limit, so filling a
+ * non-aligned window needs at most the requested page and its immediate
+ * successor. This deliberately never scans beyond those two pages.
+ */
+export async function listCustomersWithoutQuery(client, limit, offset) {
+  const page = Math.floor(offset / limit) + 1;
+  const offsetWithinPage = offset % limit;
+  const firstResponse = await client.get(`/buyer${buildQuery({ limit, page })}`);
+
+  if (offsetWithinPage === 0) return firstResponse;
+
+  const rows = [...responseRows(firstResponse)];
+  if (rows.length < offsetWithinPage + limit && hasNextPage(firstResponse, page, limit)) {
+    const { currentPage } = responsePagination(firstResponse, page);
+    const nextPage = currentPage > page ? currentPage + 1 : page + 1;
+    const nextResponse = await client.get(`/buyer${buildQuery({ limit, page: nextPage })}`);
+    rows.push(...responseRows(nextResponse));
+  }
+
+  return buildOffsetResponse(
+    firstResponse,
+    rows.slice(offsetWithinPage, offsetWithinPage + limit),
+    offset,
+    limit,
+  );
+}
+
 export function registerCustomerTools(server, client, wrap) {
   server.tool(
     'list_customers',
@@ -141,10 +244,7 @@ export function registerCustomerTools(server, client, wrap) {
       const offset = p.offset ?? 0;
       const query = p.query?.trim();
       if (query) return searchCustomers(client, query, limit, offset);
-
-      const page = Math.floor(offset / limit) + 1;
-      const qs = buildQuery({ limit, page });
-      return client.get(`/buyer${qs}`);
+      return listCustomersWithoutQuery(client, limit, offset);
     })
   );
 

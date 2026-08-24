@@ -666,7 +666,11 @@ List customers with optional name, email, or phone search. KeyCRM does not accep
 the `filter[query]` parameter, so searches scan supported `/buyer` pages
 client-side, up to 20 pages of 50 rows. A bounded search returns
 `search_truncated: true` when the API does not provide enough pagination
-metadata to prove that all customers were scanned.
+metadata to prove that all customers were scanned. `offset` is zero-based. For
+an unfiltered request whose offset falls inside a native page, the server
+fetches that page and at most its immediate successor, then slices the result
+locally; it never performs an unbounded page scan. Because that slice is local,
+stale pagination URL/link fields are omitted from the returned metadata.
 
 **Input parameters:**
 

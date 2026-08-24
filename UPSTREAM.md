@@ -12,7 +12,9 @@ The fork currently contains these intentional compatibility changes:
 - removed the invalid `list_warehouses` endpoint;
 - removed request parameters from tool-call logs to avoid logging PII; and
 - bounded client-side customer search over supported `/buyer` pages, with
-  `search_truncated` when the scan cannot prove completeness.
+  `search_truncated` when the scan cannot prove completeness; and
+- defined zero-based non-aligned customer offsets as a bounded local slice over
+  at most two adjacent native pages, with stale pagination URL metadata removed.
 
 The package identity remains `keycrm-mcp@1.0.0` and the runtime entry point is
 `index.js`. Downstream vendoring or packaging is a separate release decision;
