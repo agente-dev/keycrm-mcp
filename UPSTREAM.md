@@ -21,10 +21,12 @@ The package identity remains `keycrm-mcp@1.0.0` and the runtime entry point is
 this repository change does not publish a package or modify downstream
 consumers.
 
-## License decision required
+## License
 
-`package.json` declares `ISC`, historical README text claimed `MIT`, and no
-`LICENSE` file is present. Those facts are recorded for owner review only; they
-do not select a license or grant rights. Public-maintenance readiness remains
-blocked until an owner chooses one authoritative license and adds the matching
-file.
+`main` carries the authoritative ISC `LICENSE` file (added 2026-08-26,
+preserving the original author's copyright — IvanKlymenko — alongside the
+Agente Dev LTD modifications). `package.json` declares `ISC`, matching that
+file; the historical `MIT` claim in earlier README revisions is superseded.
+The earlier "license decision required" gate is closed by that owner decision.
+This branch makes no new license choice and grants no rights beyond the
+`LICENSE` file on `main`.

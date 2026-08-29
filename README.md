@@ -4,7 +4,7 @@
 
 **Original author:** Ivan Klymenko
 **Maintainer:** agente.dev
-**License:** Owner decision required (see [License status](#license-status))
+**License:** ISC (see [LICENSE](LICENSE) and [License](#license))
 **Node.js:** 23.6+
 **MCP SDK:** `@modelcontextprotocol/sdk`
 
@@ -1050,14 +1050,15 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the public contribution and
 maintenance workflow. Before proposing a connector change, verify the live
 KeyCRM endpoint and add a focused test at the affected tool boundary.
 
-## License status
+## License
 
-The package manifest currently declares `ISC`, while historical README text
-claimed `MIT`; this repository has no `LICENSE` file. That conflict is an
-explicit owner decision, not a conclusion this repository can make. Until an
-owner selects one authoritative license and adds the matching license file,
-the public-maintenance readiness gate remains open and this README makes no
-license grant.
+This project is licensed under the ISC License. The authoritative text lives
+in [`LICENSE`](LICENSE), added on `main` on 2026-08-26 with the copyright of
+the original author (IvanKlymenko) preserved and the Agente Dev LTD
+modifications noted. The `package.json` manifest declares `ISC`, matching the
+`LICENSE` file; the historical `MIT` line that appeared in earlier README
+revisions is superseded. The public-maintenance readiness gate that waited on
+an owner license decision is closed.
 
 ---
 
