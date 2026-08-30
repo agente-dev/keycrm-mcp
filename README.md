@@ -2,10 +2,15 @@
 
 > A Model Context Protocol (MCP) server for [keyCRM](https://keycrm.app) — lets Claude manage your keyCRM catalogue, stock, orders, customers, pipelines, and more via natural language.
 
-**Author:** Ivan Klymenko  
-**License:** MIT  
-**Node.js:** 23.6+  
+**Original author:** Ivan Klymenko
+**Maintainer:** agente.dev
+**License:** ISC (see [LICENSE](LICENSE) and [License](#license))
+**Node.js:** 23.6+
 **MCP SDK:** `@modelcontextprotocol/sdk`
+
+This repository is the maintained `agente-dev/keycrm-mcp` fork of the source
+project at [`IvanKlymenko/keycrm-mcp`](https://github.com/IvanKlymenko/keycrm-mcp).
+The package name and MCP server identity remain `keycrm-mcp`.
 
 ---
 
@@ -28,7 +33,6 @@
    - 6.9 [Pipelines](#69-pipelines)
    - 6.10 [Storage](#610-storage)
    - 6.11 [Custom Fields](#611-custom-fields)
-   - 6.12 [Warehouses](#612-warehouses)
 7. [Error Handling](#7-error-handling)
 8. [Logging](#8-logging)
 9. [Project Structure](#9-project-structure)
@@ -72,7 +76,7 @@ The server runs as a local Node.js process and communicates with your MCP client
 ### 3.1 Clone the repository
 
 ```bash
-git clone https://github.com/ivanklymenko/keycrm-mcp.git
+git clone https://github.com/agente-dev/keycrm-mcp.git
 cd keycrm-mcp
 ```
 
@@ -658,14 +662,22 @@ Attach an external transaction to an existing payment record in keyCRM. Used to 
 
 #### `list_customers`
 
-List customers with optional search.
+List customers with optional name, email, or phone search. KeyCRM does not accept
+the `filter[query]` parameter, so searches scan supported `/buyer` pages
+client-side, up to 20 pages of 50 rows. A bounded search returns
+`search_truncated: true` when the API does not provide enough pagination
+metadata to prove that all customers were scanned. `offset` is zero-based. For
+an unfiltered request whose offset falls inside a native page, the server
+fetches that page and at most its immediate successor, then slices the result
+locally; it never performs an unbounded page scan. Because that slice is local,
+stale pagination URL/link fields are omitted from the returned metadata.
 
 **Input parameters:**
 
 | Parameter | Type | Required | Description |
 |---|---|---|---|
 | `query` | string | ❌ | Search by name, email, or phone |
-| `limit` | number | ❌ | Number of results to return (default: `LIST_DEFAULT_LIMIT`) |
+| `limit` | number | ❌ | Number of results to return (maximum 50; default: `LIST_DEFAULT_LIMIT`) |
 | `offset` | number | ❌ | Pagination offset (default: 0) |
 
 ---
@@ -863,18 +875,6 @@ List all custom fields configured in keyCRM with their IDs, names, types, and al
 
 ---
 
-### 6.12 Warehouses
-
----
-
-#### `list_warehouses`
-
-List all warehouses configured in keyCRM with their IDs, names, and addresses.
-
-**Input parameters:** None
-
----
-
 ## 7. Error Handling
 
 All keyCRM API errors are caught and returned to Claude as structured error messages — they are never thrown as unhandled exceptions.
@@ -904,7 +904,7 @@ All keyCRM API errors are caught and returned to Claude as structured error mess
 
 ### Rate limiting
 
-The keyCRM API enforces a limit of **60 requests per minute per IP address per API key**. The server handles HTTP 429 responses automatically with exponential backoff:
+According to the [official keyCRM API-key guidance](https://help.keycrm.app/uk/process-automation-api-and-more/where-to-get-an-api-key), the API limit is **up to 20 requests per minute per API key**; keyCRM recommends a 3-second interval between requests. The server handles HTTP 429 responses automatically with exponential backoff:
 
 - First retry: 1 second
 - Second retry: 2 seconds
@@ -919,13 +919,15 @@ All timestamps in the keyCRM API use **UTC (GMT+0)** — for reads, filters, and
 
 ## 8. Logging
 
-All tool calls and API interactions are logged to a local file for debugging.
+Tool calls and API interactions are logged to a local file for debugging. Input
+parameters are intentionally omitted so customer names, email addresses, phone
+numbers, and other request data do not enter the log.
 
 ### Log format
 
 ```
-[2026-03-25T14:32:01.123Z] [INFO]  tool_call: list_products | params: {"status":"draft"} | duration: 312ms | status: ok
-[2026-03-25T14:32:05.456Z] [ERROR] tool_call: get_product | params: {"product_id":9999} | duration: 201ms | status: error | code: KEYCRM_API_ERROR | message: Product not found
+[2026-03-25T14:32:01.123Z] [INFO]  tool_call: list_products | duration: 312ms | status: ok
+[2026-03-25T14:32:05.456Z] [ERROR] tool_call: get_product | duration: 201ms | status: error | code: KEYCRM_API_ERROR | message: Product not found
 ```
 
 ### Log location
@@ -971,15 +973,13 @@ keycrm-mcp/
 │   │   │                     # create_pipeline_card, update_pipeline_card
 │   │   ├── storage.js        # upload_file, list_files
 │   │   ├── custom-fields.js  # list_custom_fields
-│   │   └── warehouses.js     # list_warehouses
 │   ├── keycrm/
 │   │   ├── client.js         # keyCRM REST API client (fetch wrapper, auth, retry)
 │   │   └── errors.js         # Error normalisation
 │   └── utils/
 │       ├── logger.js         # File logger
 │       └── validate.js       # Input validation helpers
-└── logs/
-    └── keycrm-mcp.log        # Runtime log (auto-created)
+└── logs/                    # Runtime logs (ignored by git)
 ```
 
 ---
@@ -1046,17 +1046,20 @@ The project uses ES modules (`"type": "module"` in `package.json`). All imports 
 
 ## 11. Contributing
 
-Contributions are welcome. This is a generic keyCRM MCP server — pull requests that extend coverage of the keyCRM API are encouraged.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the public contribution and
+maintenance workflow. Before proposing a connector change, verify the live
+KeyCRM endpoint and add a focused test at the affected tool boundary.
 
-**Before opening a PR:**
+## License
 
-- Follow the existing file structure (one file per resource group in `src/tools/`)
-- Add input parameter validation using Zod for every new tool
-- Ensure errors are caught and returned as structured error objects, not thrown
-- Update this README with the new tool in Section 6
-
-**To report a bug or request a tool:** open a GitHub issue with the keyCRM API endpoint you need covered and a description of the use case.
+This project is licensed under the ISC License. The authoritative text lives
+in [`LICENSE`](LICENSE), added on `main` on 2026-08-26 with the copyright of
+the original author (IvanKlymenko) preserved and the Agente Dev LTD
+modifications noted. The `package.json` manifest declares `ISC`, matching the
+`LICENSE` file; the historical `MIT` line that appeared in earlier README
+revisions is superseded. The public-maintenance readiness gate that waited on
+an owner license decision is closed.
 
 ---
 
-*keycrm-mcp · Ivan Klymenko · MIT License*
+*keycrm-mcp · maintained by agente.dev; original project by Ivan Klymenko*
